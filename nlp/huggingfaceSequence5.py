@@ -878,88 +878,70 @@ if __name__ == "__main__":
     max_target_length = args.max_target_length
     ignore_pad_token_for_loss = True
 
-    if task in ["translation", "summarization", "openqa"]:
-        def seqpreprocess_function(examples, mode='train'):
-            if task == "translation":
-                inputs = [ex[text_column] for ex in examples[task_column]] # "translation"
-                targets = [ex[target_column] for ex in examples[task_column]]
-            elif task == "summarization":
-                inputs = examples[text_column]
-                targets = examples[target_column]
-            elif task == "openqa":
-                inputs, targets = preprocess_squad_batch(examples, question_column=task_column, context_column=text_column, answer_column=target_column)
-            
-            inputs = [prefix + inp for inp in inputs]
-            if task == "openqa" and mode=='val':
-                model_inputs = tokenizer(
-                    inputs,
-                    max_length=args.max_source_length,
-                    padding=padding,
-                    truncation=True,
-                    return_overflowing_tokens=True,
-                    return_offsets_mapping=True,
-                )
-            else:
-                model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
-            # Tokenize targets with the `text_target` keyword argument
-            labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
-            # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
-            # padding in the loss.
-            if padding == "max_length" and ignore_pad_token_for_loss:
-                labels["input_ids"] = [
-                    [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-                ]
-            
-            if task == "openqa" and mode=='val':
-                model_inputs = updateopenQAvalinputs(model_inputs, examples, labels)
-                #model_inputs["labels"] = labels_out
-            else:
-                model_inputs["labels"] = labels["input_ids"]
-            return model_inputs
+    def seqpreprocess_function(examples, mode='train'):
+        if task == "translation":
+            inputs = [ex[text_column] for ex in examples[task_column]]
+            targets = [ex[target_column] for ex in examples[task_column]]
+        elif task == "summarization":
+            inputs = examples[text_column]
+            targets = examples[target_column]
+        elif task == "openqa":
+            inputs, targets = preprocess_squad_batch(examples, question_column=task_column, context_column=text_column, answer_column=target_column)
         
-        if task in ["translation", "summarization"]:
-            tokenized_datasets = raw_datasets.map(
-                    seqpreprocess_function,
-                    batched=True,
-                    num_proc=1,
-                    remove_columns=raw_datasets["train"].column_names,
-                )#The default batch size is 1000, but you can adjust it with the batch_size argument
-            tokenized_datasets.set_format("torch")
-            train_dataset = tokenized_datasets["train"]
-            eval_dataset = tokenized_datasets[valkey]
-        else: #openqa
-            train_dataset = raw_datasets["train"]
-            eval_dataset = raw_datasets[valkey]
-            mode='train'
-            train_dataset = train_dataset.map(
-                seqpreprocess_function, batched=True, remove_columns=raw_datasets["train"].column_names,
-                    fn_kwargs={"mode": mode})
-            mode='val'
-            eval_dataset =eval_dataset.map(
-                seqpreprocess_function, batched=True, remove_columns=raw_datasets["train"].column_names,
-                    fn_kwargs={"mode": mode}) 
-    elif task in ['qa', 'QA', 'QuestionAnswering']:
-        def QApreprocess_function(examples, mode='train'):
-            questions = [ex.strip() for ex in examples[task_column]] #"question"
-            context = examples[text_column] #"context"
-            stride = 128
+        inputs = [prefix + inp for inp in inputs]
+
+        if task == "openqa" and mode == 'val':
             model_inputs = tokenizer(
-                questions,
-                context, #examples["context"],
-                max_length=args.max_source_length, #384
-                truncation="only_second",
-                stride=stride,
+                inputs,
+                max_length=args.max_source_length,
+                padding=padding,
+                truncation=True,
                 return_overflowing_tokens=True,
-                return_offsets_mapping=True, #map the start and end positions of the answer to the original context 
-                padding=padding, #"max_length",
+                return_offsets_mapping=True,
             )
-            if mode=='train':
-                #add "start_positions" and "end_positions" into the inputs as the labels
-                model_inputs=updateQAtraininputs(model_inputs, examples, tokenizer)
-            else: #val
-                #add "example_id"
-                model_inputs=updateQAvalinputs(model_inputs, examples)
-            return model_inputs
+        else:
+            model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
+
+        labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
+
+        if padding == "max_length" and ignore_pad_token_for_loss:
+            labels["input_ids"] = [
+                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            ]
+
+        if task == "openqa" and mode == 'val':
+            model_inputs = updateopenQAvalinputs(model_inputs, examples, labels)
+        else:
+            model_inputs["labels"] = labels["input_ids"]
+
+        return model_inputs
+
+# Map the preprocessing function to datasets based on the task
+if task in ["translation", "summarization", "openqa"]:
+    tokenized_datasets = raw_datasets.map(
+        seqpreprocess_function,
+        batched=True,
+        num_proc=1,
+        remove_columns=raw_datasets["train"].column_names,
+    )
+    tokenized_datasets.set_format("torch")
+    train_dataset = tokenized_datasets["train"]
+    eval_dataset = tokenized_datasets[valkey]
+
+    if task == "openqa":
+        mode = 'train'
+        train_dataset = train_dataset.map(
+            lambda examples: seqpreprocess_function(examples, mode=mode),
+            batched=True,
+            remove_columns=raw_datasets["train"].column_names,
+        )
+        mode = 'val'
+        eval_dataset = eval_dataset.map(
+            lambda examples: seqpreprocess_function(examples, mode=mode),
+            batched=True,
+            remove_columns=raw_datasets["train"].column_names,
+        )
+
         
         # tokenized_datasets = raw_datasets.map(
         #         QApreprocess_function,
