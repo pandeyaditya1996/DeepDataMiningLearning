@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Model Interface</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>NLP Tasks Interface</h1>
+    <select id="task-select">
+        <option value="translation">Translation</option>
+        <option value="summarization">Summarization</option>
+        <option value="qa">Question Answering</option>
+    </select>
+    <textarea id="input-text" placeholder="Enter text here..." rows="6"></textarea>
+    <button onclick="submitTask()">Submit</button>
+    <h2>Result:</h2>
+    <div id="result-text"></div>
+</body>
+<script src="script.js"></script>
+</html>

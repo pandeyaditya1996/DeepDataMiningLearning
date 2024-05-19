@@ -879,42 +879,42 @@ if __name__ == "__main__":
     ignore_pad_token_for_loss = True
 
     def seqpreprocess_function(examples, mode='train'):
-        if task == "translation":
-            inputs = [ex[text_column] for ex in examples[task_column]]
-            targets = [ex[target_column] for ex in examples[task_column]]
-        elif task == "summarization":
-            inputs = examples[text_column]
-            targets = examples[target_column]
-        elif task == "openqa":
-            inputs, targets = preprocess_squad_batch(examples, question_column=task_column, context_column=text_column, answer_column=target_column)
-        
-        inputs = [prefix + inp for inp in inputs]
+            if task == "translation":
+                inputs = [ex[text_column] for ex in examples[task_column]]
+                targets = [ex[target_column] for ex in examples[task_column]]
+            elif task == "summarization":
+                inputs = examples[text_column]
+                targets = examples[target_column]
+            elif task == "openqa":
+                inputs, targets = preprocess_squad_batch(examples, question_column=task_column, context_column=text_column, answer_column=target_column)
+            
+            inputs = [prefix + inp for inp in inputs]
 
-        if task == "openqa" and mode == 'val':
-            model_inputs = tokenizer(
-                inputs,
-                max_length=args.max_source_length,
-                padding=padding,
-                truncation=True,
-                return_overflowing_tokens=True,
-                return_offsets_mapping=True,
-            )
-        else:
-            model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
+            if task == "openqa" and mode == 'val':
+                model_inputs = tokenizer(
+                    inputs,
+                    max_length=args.max_source_length,
+                    padding=padding,
+                    truncation=True,
+                    return_overflowing_tokens=True,
+                    return_offsets_mapping=True,
+                )
+            else:
+                model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
 
-        labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
+            labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
 
-        if padding == "max_length" and ignore_pad_token_for_loss:
-            labels["input_ids"] = [
-                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-            ]
+            if padding == "max_length" and ignore_pad_token_for_loss:
+                labels["input_ids"] = [
+                    [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+                ]
 
-        if task == "openqa" and mode == 'val':
-            model_inputs = updateopenQAvalinputs(model_inputs, examples, labels)
-        else:
-            model_inputs["labels"] = labels["input_ids"]
+            if task == "openqa" and mode == 'val':
+                model_inputs = updateopenQAvalinputs(model_inputs, examples, labels)
+            else:
+                model_inputs["labels"] = labels["input_ids"]
 
-        return model_inputs
+            return model_inputs
 
 # Map the preprocessing function to datasets based on the task
 if task in ["translation", "summarization", "openqa"]:
